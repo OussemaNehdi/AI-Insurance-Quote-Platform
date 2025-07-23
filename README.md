@@ -34,3 +34,16 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+# Insurance-Quote-Platform
+Insurance Quote Platform — Smart Pricing &amp; AI-Driven Client Interaction
+
+# Steps to start the project
+
+after cloning the project:
+
+1 - run "npm install" in the terminal
+
+2 - run "npm run dev" in the terminal
+
