@@ -17,7 +17,7 @@ export default function Home() {
           
           <div className="border p-8 rounded-lg shadow-md max-w-md">
             <h2 className="text-2xl font-semibold mb-4">For Clients</h2>
-            <p className="mb-6">Chat with our AI assistant to find the best insurance plan for your needs.</p>
+            <p className="mb-6">Chat with our insurance assistant to get personalized quotes and support.</p>
             <Link href="/client" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md inline-block">
               Get Insurance Quote
             </Link>
