@@ -8,7 +8,7 @@ export default function ClientPage() {
     // Configure the chat widget
     (window as any).ChatWidgetConfig = {
       webhook: {
-        url: '/api/chat', // Use our proxy API route instead of direct n8n webhook
+        url: '/api/chat', 
         route: 'general'
       },
       branding: {
@@ -18,11 +18,11 @@ export default function ClientPage() {
         responseTimeText: 'We usually respond right away'
       },
       style: {
-        primaryColor: '#2563eb',      // Modern blue
-        secondaryColor: '#1e40af',    // Darker blue
+        primaryColor: '#2563eb',      
+        secondaryColor: '#1e40af',   
         position: 'right',
-        backgroundColor: '#f8fafc',   // Light gray background
-        fontColor: '#1f2937'          // Dark gray text
+        backgroundColor: '#f8fafc',   
+        fontColor: '#1f2937'          
       }
     };
 
@@ -32,7 +32,6 @@ export default function ClientPage() {
     script.async = true;
     document.body.appendChild(script);
 
-    // Cleanup function
     return () => {
       // Remove the script when component unmounts
       const existingScript = document.querySelector('script[src="https://cdn.jsdelivr.net/gh/WayneSimpson/n8n-chatbot-template@ba944c3/chat-widget.js"]');
