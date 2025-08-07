@@ -6,25 +6,42 @@
 export interface CompanySettings {
   companyId: string;
   companyName: string;
-  ageMultipliers: AgeMultiplier[];
-  locationMultipliers: LocationMultiplier[];
+  email: string;
+  website?: string;
+  phone?: string;
+  address?: string;
+  logo?: string;
   insuranceTypes: InsuranceType[];
 }
 
-export interface AgeMultiplier {
-  minAge: number;
-  maxAge: number;
-  multiplier: number;
-}
-
-export interface LocationMultiplier {
-  country: string;
-  multiplier: number;
-}
-
+/**
+ * Insurance configuration interfaces
+ */
 export interface InsuranceType {
   type: string;
-  baseRate: number;
+  displayName: string;
+  basePrice: number;
+  fields: InsuranceField[];
+}
+
+export interface InsuranceField {
+  name: string;
+  label: string;
+  type: 'select' | 'range';
+  fallbackMultiplier: number;
+  options?: FieldOption[];
+  brackets?: FieldBracket[];
+}
+
+export interface FieldOption {
+  value: string;
+  multiplier: number;
+}
+
+export interface FieldBracket {
+  min: number;
+  max: number;
+  multiplier: number;
 }
 
 /**
@@ -59,6 +76,6 @@ export interface QuoteAdjustment {
 export interface User {
   id: string;
   email: string;
-  companyId?: string;
+  companyId?: string | null;
   role: 'admin' | 'company';
 }

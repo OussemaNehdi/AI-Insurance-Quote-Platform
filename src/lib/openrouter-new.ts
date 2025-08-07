@@ -1,4 +1,4 @@
-// OpenRouter API client for Insurance AI
+// OpenRouter API client for Insurance AI - Improved version
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -9,6 +9,7 @@ export interface AIResponse {
   success: boolean;
   message?: string;
   error?: string;
+  warning?: string;
 }
 
 export interface InsuranceAIResponse {
@@ -34,14 +35,8 @@ export async function chatWithAI(messages: ChatMessage[]): Promise<{ content: st
     
     // Ensure the system message enforces JSON response format
     if (messages.length > 0 && messages[0].role === 'system') {
-      // Make sure we're enforcing JSON format
       if (!messages[0].content.includes('JSON')) {
         messages[0].content += `\n\nCRITICAL: Your ENTIRE response must be ONLY a valid JSON object in the format: {"answer": "your response", "collectedData": {}}. Do not include any text outside this JSON object.`;
-      }
-      
-      // Add reminder to only ask about company-defined fields if present
-      if (!messages[0].content.includes('ONLY ask about fields defined')) {
-        messages[0].content += `\n\nIMPORTANT: ONLY ask about fields defined in the insurance configuration. Do not ask for additional information.`;
       }
     }
     
@@ -53,7 +48,7 @@ export async function chatWithAI(messages: ChatMessage[]): Promise<{ content: st
         'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
         'X-Title': process.env.APP_NAME || 'Insurance AI Assistant',
         'OpenAI-Organization': 'org-',  // Required for OpenRouter
-        'X-Requested-With': 'xmlhttprequest' // Identify as AJAX request
+        'X-Requested-With': 'xmlhttprequest'
       },
       body: JSON.stringify({
         model: model,

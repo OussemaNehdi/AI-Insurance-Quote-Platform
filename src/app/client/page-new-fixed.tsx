@@ -18,60 +18,36 @@ interface Message {
 interface InsuranceData {
   companyId?: string;
   insuranceType?: string;
-  [key: string]: any; // Allow dynamic fields based on insurance type
+  age?: number | string;
+  country?: string;
+  gender?: string;
+  city?: string;
+  completed?: boolean;
 }
 
 interface Company {
   companyId: string;
   companyName: string;
-  insuranceTypes: string[];
-}
-
-interface InsuranceField {
-  name: string;
-  label: string;
-  type: 'select' | 'range';
-  fallbackMultiplier: number;
-  options?: FieldOption[];
-  brackets?: FieldBracket[];
-}
-
-interface FieldOption {
-  value: string;
-  multiplier: number;
-}
-
-interface FieldBracket {
-  min: number;
-  max: number;
-  multiplier: number;
-}
-
-interface InsuranceTypeDetails {
-  type: string;
-  displayName: string;
-  basePrice: number;
-  fields: InsuranceField[];
-}
-
-interface InsuranceTypeOption {
-  type: string;
-  displayName: string;
+  insuranceTypes: { type: string; displayName: string }[];
 }
 
 export default function ClientPage() {
   const [input, setInput] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
-  const [insuranceTypes, setInsuranceTypes] = useState<InsuranceTypeOption[]>([]);
+  const [insuranceTypes, setInsuranceTypes] = useState<{ type: string; displayName: string }[]>([]);
   const [selectedInsuranceType, setSelectedInsuranceType] = useState<string>('');
-  const [insuranceDetails, setInsuranceDetails] = useState<InsuranceTypeDetails | null>(null);
   const [isCompanyLoading, setIsCompanyLoading] = useState(true);
-  const [isInsuranceLoading, setIsInsuranceLoading] = useState(false);
+
+  // Helper function to get display name for selected insurance type
+  const getSelectedInsuranceDisplayName = () => {
+    const selectedInsuranceTypeObj = insuranceTypes.find(type => type.type === selectedInsuranceType);
+    return selectedInsuranceTypeObj?.displayName || selectedInsuranceType;
+  };
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Hello! I'm your insurance assistant. Please select an insurance company and type to begin getting your personalized quote.",
+      text: "Hello! I'm your insurance assistant. I can help you find the best insurance plan. Please select an insurance company and type to begin.",
       isBot: true,
     },
   ]);
@@ -80,7 +56,35 @@ export default function ClientPage() {
   const [showQuote, setShowQuote] = useState(false);
   const [quoteData, setQuoteData] = useState<any>(null);
   const [chatEnabled, setChatEnabled] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    {
+      role: 'system',
+      content: `You are a chatbot for an insurance company. Your task is to collect information from users: 
+      1) age (must be a number), 
+      2) country, 
+      3) gender, 
+      4) city.
+
+      ⚠️ IMPORTANT RULES:
+      DO NOT output anything except a single valid JSON object.
+      Your entire response must only be in this JSON format:
+      { "answer": "your friendly response", "collectedData": { ... } }
+      Never include any natural language outside the JSON.
+      Be extremely conversational inside the answer field, like ChatGPT.
+      Do not move to the next question until the current one is valid.
+      
+      Update the collectedData object as you collect each piece of information.
+      For example, after getting the insurance type:
+      { "answer": "...", "collectedData": {"insuranceType": "Auto"} }
+      
+      After getting age:
+      { "answer": "...", "collectedData": {"insuranceType": "Auto", "age": 30} }
+      
+      And so on until all fields are filled.
+      
+      Once you verify all fields are filled, add a completion message in the answer field.`
+    }
+  ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -120,140 +124,126 @@ export default function ClientPage() {
     if (selectedCompany) {
       const company = companies.find(c => c.companyId === selectedCompany);
       if (company) {
-        // Ensure we're setting the correct format
-        const formattedTypes = company.insuranceTypes.map(type => 
-          typeof type === 'string' 
-            ? { type, displayName: type } 
-            : type
-        );
-        setInsuranceTypes(formattedTypes);
+        setInsuranceTypes(company.insuranceTypes);
         setSelectedInsuranceType('');
-        setInsuranceDetails(null);
       }
     } else {
       setInsuranceTypes([]);
       setSelectedInsuranceType('');
-      setInsuranceDetails(null);
     }
   }, [selectedCompany, companies]);
   
-  // Fetch insurance type details when insurance type is selected
+  // Enable chat when both company and insurance type are selected
   useEffect(() => {
-    const fetchInsuranceDetails = async () => {
-      if (!selectedCompany || !selectedInsuranceType) {
-        setInsuranceDetails(null);
-        setChatEnabled(false);
-        return;
-      }
+    if (selectedCompany && selectedInsuranceType) {
+      setChatEnabled(true);
+      setClientData(prevData => ({
+        ...prevData,
+        companyId: selectedCompany,
+        insuranceType: selectedInsuranceType
+      }));
+      
+      // Get the display name for the selected insurance type
+      const selectedDisplayName = getSelectedInsuranceDisplayName();
+      
+      // Fetch the specific insurance fields for this company and type
+      const fetchInsuranceFields = async () => {
+        try {
+          const response = await fetch(`/api/companies?companyId=${selectedCompany}&type=${selectedInsuranceType}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch insurance fields');
+          }
+          
+          const data = await response.json();
+          if (data.success && data.data?.insuranceTypes?.length > 0) {
+            const fields = data.data.insuranceTypes[0].fields || [];
+            
+            // Extract field names and create a list
+            const fieldsList = fields.map((field: any) => `${field.name} (${field.type === 'select' ? 'options: ' + 
+              field.options.map((opt: any) => opt.value).join(', ') : 
+              'range: ' + field.brackets?.[0]?.min + '-' + field.brackets?.[field.brackets.length-1]?.max})`).join(', ');
+            
+            // Start the chat with specific fields to collect
+            setChatHistory([
+              {
+                role: 'system',
+                content: `You are a chatbot for an insurance company. The user has selected ${selectedDisplayName}.
+                Your task is to collect ONLY the following information from users: 
+                ${fields.map((f: any, i: number) => `${i+1}) ${f.name} (${f.label})`).join('\n')}
+                
+                If the list above doesn't include age, country, gender, or city, DO NOT ask for them.
 
-      setIsInsuranceLoading(true);
-      try {
-        const response = await fetch(`/api/insurance/details?companyId=${selectedCompany}&type=${selectedInsuranceType}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch insurance details');
+          ⚠️ CRITICAL RULES:
+          - Your ENTIRE response must be ONLY a single valid JSON object
+          - Do not include any text outside the JSON object
+          - NEVER use markdown code blocks or formatting
+          - Your response MUST start with { and end with }
+          - Do NOT include the \`\`\`json prefix or \`\`\` suffix
+          
+          Your entire response must only be in this EXACT JSON format:
+          {"answer": "your friendly response", "collectedData": {...}}
+          
+          Be extremely conversational inside the answer field, like ChatGPT.
+          Do not move to the next question until the current one is valid.
+          
+          Update the collectedData object as you collect each piece of information.
+          Add the insurance type to collectedData: {"insuranceType": "${selectedInsuranceType}"}
+          
+          For example, after getting age:
+          {"answer": "...", "collectedData": {"insuranceType": "${selectedInsuranceType}", "age": 30}}
+          
+          And so on until all fields are filled: age, country, gender, city.
+          
+          Once you verify all fields are filled, add a completion message in the answer field and set "completed": true in collectedData.`
         }
+      ]);
+
+              // Add a welcome message for the chat
+              setMessages(prev => [...prev, {
+                id: Date.now(),
+                text: `Great! I'll help you get a quote for ${selectedDisplayName}. Let me ask you a few questions to calculate your personalized quote.`,
+                isBot: true
+              }]);
+            }
+          } catch (error) {
+            console.error('Error fetching insurance fields:', error);
+            // Fallback message if we couldn't get the specific fields
+            const selectedDisplayName = getSelectedInsuranceDisplayName();
+            
+            setChatHistory([
+              {
+                role: 'system',
+                content: `You are a chatbot for an insurance company. The user has selected ${selectedDisplayName}.
+                Your task is to collect information from users:
+                1) age (must be a number between 18-100),
+                2) country,
+                3) gender, 
+                4) city.
+
+                ⚠️ CRITICAL RULES:
+                - Your ENTIRE response must be ONLY a single valid JSON object
+                - Do not include any text outside the JSON object
+                - Your response MUST start with { and end with }
+                
+                Your entire response must only be in this EXACT JSON format:
+                {"answer": "your friendly response", "collectedData": {...}}`
+              }
+            ]);
+
+            // Add a fallback welcome message
+            setMessages(prev => [...prev, {
+              id: Date.now(),
+              text: `Great! I'll help you get a quote for ${selectedDisplayName}. Let me ask you a few questions.`,
+              isBot: true
+            }]);
+          }
+        };
         
-        const data = await response.json();
-        if (data.success && data.data) {
-          setInsuranceDetails(data.data.insuranceType);
-          
-          // Initialize client data
-          setClientData({
-            companyId: selectedCompany,
-            insuranceType: selectedInsuranceType
-          });
-          
-          // Setup dynamic chatbot with insurance-specific questions
-          setupDynamicChatbot(data.data.insuranceType);
-          setChatEnabled(true);
-          
-          // Add welcome message
-          setMessages(prev => [...prev, {
-            id: Date.now(),
-            text: `Perfect! I'll help you get a quote for ${data.data.insuranceType.displayName}. Let me ask you a few questions to calculate your personalized quote.`,
-            isBot: true
-          }]);
-        }
-      } catch (error) {
-        console.error('Error fetching insurance details:', error);
-      } finally {
-        setIsInsuranceLoading(false);
-      }
-    };
-
-    fetchInsuranceDetails();
-  }, [selectedCompany, selectedInsuranceType]);
-
-  // Setup dynamic chatbot based on insurance type configuration
-  const setupDynamicChatbot = (insuranceType: InsuranceTypeDetails) => {
-    const fieldDescriptions = insuranceType.fields.map(field => {
-      if (field.type === 'select' && field.options) {
-        const optionsList = field.options.map(opt => opt.value).join(', ');
-        return `${field.name} (${field.label}): select from [${optionsList}]`;
-      } else if (field.type === 'range' && field.brackets) {
-        const minValue = Math.min(...field.brackets.map(b => b.min));
-        const maxValue = Math.max(...field.brackets.map(b => b.max));
-        return `${field.name} (${field.label}): number between ${minValue} and ${maxValue}`;
+        fetchInsuranceFields();
       } else {
-        return `${field.name} (${field.label}): text input`;
+        setChatEnabled(false);
       }
-    }).join('\n');
-
-    const systemMessage = {
-      role: 'system' as const,
-      content: `You are a chatbot for ${insuranceType.displayName}. Your task is to collect the following information from users:
-
-${fieldDescriptions}
-
-⚠️ CRITICAL RULES:
-- Your ENTIRE response must be ONLY a single valid JSON object
-- Do not include any text outside the JSON object
-- NEVER use markdown code blocks or formatting
-- Your response MUST start with { and end with }
-- Do NOT include the \`\`\`json prefix or \`\`\` suffix
-
-Your entire response must only be in this EXACT JSON format:
-{"answer": "your friendly response", "collectedData": {...}}
-
-Be extremely conversational and helpful inside the answer field.
-Ask for ONE field at a time in a natural conversation flow.
-Do not move to the next question until the current one is valid.
-
-Update the collectedData object as you collect each piece of information.
-Start with: {"insuranceType": "${insuranceType.type}"}
-
-${insuranceType.fields.map(field => {
-  if (field.type === 'select' && field.options) {
-    return `For ${field.name}: Only accept values from [${field.options.map(opt => opt.value).join(', ')}]`;
-  }
-  return `For ${field.name}: Collect ${field.label}`;
-}).join('\n')}
-
-Once you have collected all required fields, add "completed": true to collectedData and give a completion message.`
-    };
-
-    setChatHistory([systemMessage]);
-  };
-
-  // Helper function to check if all required data is collected
-  const checkDataComplete = (data: any) => {
-    if (!insuranceDetails) return false;
-    
-    // Check if all required fields are present and not empty
-    const requiredFields = insuranceDetails.fields.map(field => field.name);
-    const hasAllFields = requiredFields.every(field => {
-      const value = data[field];
-      return value !== undefined && value !== '' && value !== null;
-    });
-
-    console.log('Checking data completion:', {
-      requiredFields,
-      providedData: data,
-      hasAllFields
-    });
-
-    return hasAllFields;
-  };
+    }, [selectedCompany, selectedInsuranceType]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading || !chatEnabled) return;
@@ -345,9 +335,23 @@ Once you have collected all required fields, add "completed": true to collectedD
             }]);
 
             // Check if data collection is complete
-            if (parsedResponse.collectedData.completed === true || checkDataComplete(parsedResponse.collectedData)) {
+            if (parsedResponse.collectedData.completed === true || 
+                (parsedResponse.collectedData.age && 
+                 parsedResponse.collectedData.country && 
+                 parsedResponse.collectedData.gender && 
+                 parsedResponse.collectedData.city)) {
+              
               console.log('Data collection complete, generating quote');
-              await getQuote(updatedClientData);
+              
+              // All data collected, get quote
+              await getQuote({
+                companyId: selectedCompany,
+                insuranceType: selectedInsuranceType,
+                age: parsedResponse.collectedData.age || updatedClientData.age,
+                country: parsedResponse.collectedData.country || updatedClientData.country,
+                gender: parsedResponse.collectedData.gender || updatedClientData.gender,
+                city: parsedResponse.collectedData.city || updatedClientData.city
+              });
             }
           } else {
             throw new Error('Invalid response format');
@@ -387,30 +391,11 @@ Once you have collected all required fields, add "completed": true to collectedD
       setIsLoading(true);
       console.log('Getting quote for data:', data);
       
-      // Ensure basic required fields are present
-      if (!data.companyId || !data.insuranceType) {
-        console.error('Missing basic required data for quote', data);
-        throw new Error('Missing company or insurance type information.');
+      // Ensure all required fields are present
+      if (!data.companyId || !data.insuranceType || !data.age || !data.country || !data.gender || !data.city) {
+        console.error('Missing required data for quote', data);
+        throw new Error('Missing required information. Please complete all questions.');
       }
-
-      // Check if we have insurance details to validate dynamic fields
-      if (!insuranceDetails) {
-        console.error('No insurance details available for validation');
-        throw new Error('Insurance configuration not loaded. Please refresh and try again.');
-      }
-
-      // Validate dynamic fields based on insurance type configuration
-      const requiredFields = insuranceDetails.fields.map(field => field.name);
-      const missingFields = requiredFields.filter(fieldName => 
-        !data[fieldName] || data[fieldName] === '' || data[fieldName] === undefined
-      );
-
-      if (missingFields.length > 0) {
-        console.error('Missing required dynamic fields for quote:', missingFields, 'Data:', data);
-        throw new Error(`Missing required information: ${missingFields.join(', ')}. Please complete all questions.`);
-      }
-
-      console.log('All required fields present, proceeding with quote calculation');
       
       const response = await fetch('/api/quote', {
         method: 'POST',
@@ -436,7 +421,7 @@ Once you have collected all required fields, add "completed": true to collectedD
         
         const quoteMessage = {
           id: Date.now(),
-          text: `🎉 Perfect! I've calculated your personalized ${insuranceDetails.displayName} insurance quote:
+          text: `🎉 Perfect! I've calculated your personalized ${getSelectedInsuranceDisplayName()} quote:
 
 💰 **Total Monthly Premium: $${result.quote.amount}**
 
@@ -522,6 +507,13 @@ Would you like to proceed with this quote or do you have any questions about the
                     <div className="flex items-center justify-center h-10 bg-gray-100 rounded-md">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
                     </div>
+                  ) : companies.length === 0 ? (
+                    <div className="border border-yellow-300 bg-yellow-50 p-3 rounded text-sm">
+                      <p className="text-yellow-800">No insurance companies found in the database.</p>
+                      <p className="mt-1 text-yellow-700">
+                        <Link href="/" className="underline">Return to homepage</Link> and click "Initialize Database" first.
+                      </p>
+                    </div>
                   ) : (
                     <select
                       id="company-select"
@@ -544,35 +536,26 @@ Would you like to proceed with this quote or do you have any questions about the
                   <label htmlFor="insurance-type-select" className="block text-sm font-medium mb-1">
                     Select Insurance Type
                   </label>
-                  {isInsuranceLoading ? (
-                    <div className="flex items-center justify-center h-10 bg-gray-100 rounded-md">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-                    </div>
-                  ) : (
-                    <select
-                      id="insurance-type-select"
-                      value={selectedInsuranceType}
-                      onChange={(e) => setSelectedInsuranceType(e.target.value)}
-                      disabled={!selectedCompany || insuranceTypes.length === 0}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1"
-                    >
-                      <option value="">Choose insurance type...</option>
-                      {insuranceTypes.map((insuranceType) => (
-                        <option key={insuranceType.type} value={insuranceType.type}>
-                          {insuranceType.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    id="insurance-type-select"
+                    value={selectedInsuranceType}
+                    onChange={(e) => setSelectedInsuranceType(e.target.value)}
+                    disabled={!selectedCompany || insuranceTypes.length === 0}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1"
+                  >
+                    <option value="">Choose insurance type...</option>
+                    {insuranceTypes.map((insuranceTypeObj) => (
+                      <option key={insuranceTypeObj.type} value={insuranceTypeObj.type}>
+                        {insuranceTypeObj.displayName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {selectedCompany && selectedInsuranceType && insuranceDetails && (
+                {selectedCompany && selectedInsuranceType && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-green-700 text-sm">
-                      ✅ Great! Selected: <strong>{insuranceDetails.displayName}</strong>
-                    </p>
-                    <p className="text-green-600 text-xs mt-1">
-                      Now chat with our AI assistant to get your personalized quote.
+                      ✅ Great! Now chat with our AI assistant to get your personalized quote.
                     </p>
                   </div>
                 )}

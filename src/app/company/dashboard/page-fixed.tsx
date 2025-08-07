@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Trash, PlusCircle, Save, ArrowLeft, LogOut } from "lucide-react";
+import { Trash, PlusCircle, Save, ArrowLeft } from "lucide-react";
 import { InsuranceType, InsuranceField, FieldOption, FieldBracket } from '@/lib/types';
 
 export default function Dashboard() {
@@ -277,7 +277,6 @@ export default function Dashboard() {
     setInsuranceTypes(updatedTypes);
   };
 
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
       <MaxWidthWrapper className="py-8 px-4">
@@ -288,16 +287,10 @@ export default function Dashboard() {
               Configure your company's insurance offerings
             </p>
           </div>
-          <div className="flex items-center space-x-3">
-            <Button onClick={() => router.push('/')} variant="outline">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Home
-            </Button>
-            <Button onClick={handleLogout} variant="destructive">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
-          </div>
+          <Button onClick={() => router.push('/')} variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Home
+          </Button>
         </div>
 
         {/* Success and Error Messages */}

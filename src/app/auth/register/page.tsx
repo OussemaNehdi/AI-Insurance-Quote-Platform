@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -10,6 +11,10 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const router = useRouter();
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -21,10 +26,61 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
-    // TODO: Implement registration logic with database
-    console.log('Registration data:', formData);
-    alert('Registration functionality will be implemented in the future.');
+    // Password validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      // Register the user
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        setError(data.error || 'Registration failed');
+        return;
+      }
+      
+      // Store token and user info
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Update company name if provided
+      if (formData.companyName && data.user.companyId) {
+        await fetch('/api/companies', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${data.token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            companyName: formData.companyName
+          })
+        });
+      }
+      
+      // Redirect to dashboard
+      router.push('/company/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during registration');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,6 +97,23 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 my-4">
+            <p className="text-red-700 text-sm font-medium">{error}</p>
+            
+            {/* Show troubleshooting link for database errors */}
+            {error.toLowerCase().includes('database') || 
+             error.toLowerCase().includes('mongodb') || 
+             error.toLowerCase().includes('connection') ? (
+              <p className="mt-2 text-sm">
+                <Link href="/troubleshoot/mongodb" className="text-blue-600 hover:underline">
+                  Troubleshoot MongoDB Connection Issues →
+                </Link>
+              </p>
+            ) : null}
+          </div>
+        )}
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
