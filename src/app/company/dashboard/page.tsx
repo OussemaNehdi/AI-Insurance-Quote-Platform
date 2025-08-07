@@ -277,6 +277,15 @@ export default function Dashboard() {
     setInsuranceTypes(updatedTypes);
   };
 
+  // Add logout function
+  const handleLogout = () => {
+    // Clear authentication data
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // Redirect to homepage
+    router.push('/');
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
