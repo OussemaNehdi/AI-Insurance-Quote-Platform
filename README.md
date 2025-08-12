@@ -1,3 +1,10 @@
+## AI-Insurance-Quote-Platform
+AI-Insurance-Quote-Platform<img width="1087" height="907" alt="image" src="https://github.com/user-attachments/assets/6c5feb6b-28c1-40a7-998c-2b8879fe0328" />
+
+
+<img width="1097" height="722" alt="image" src="https://github.com/user-attachments/assets/6926c7b2-9e21-4c5a-bf02-f555fa4670f3" />
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
